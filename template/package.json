@@ -1,0 +1,21 @@
+{
+  "name": "xiaohui-promo",
+  "version": "1.0.0",
+  "description": "小慧呜啦啦 AI长辈管家 产品宣传片 (Remotion)",
+  "scripts": {
+    "dev": "remotion studio",
+    "render": "remotion render Promo out/promo.mp4 --concurrency=2"
+  },
+  "dependencies": {
+    "@remotion/google-fonts": "4.0.367",
+    "@remotion/transitions": "4.0.367",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.367"
+  },
+  "devDependencies": {
+    "@remotion/cli": "4.0.367",
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
