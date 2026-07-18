@@ -7,6 +7,82 @@
 
 ---
 
+## Showcase 信息
+
+### 具体流程
+
+这个 Skill 的目标不是“一键把所有画面交给视频模型生成”，而是把 AI 生成和代码化视频结合起来，降低成本并保留可控性：
+
+1. **读取输入素材**：扫描用户给的图片、截图、产品视频，确认分辨率、时长、编码和可用卖点。
+2. **写分镜和旁白**：可用 `bl text chat` 起草 60-90 秒分镜表，再人工压缩成镜头号、画面、字幕、旁白和素材映射。
+3. **整理素材**：图片统一放到 `public/assets`，文件名改成 ASCII；HEVC 视频转 H.264，避免 Chromium/Remotion 黑屏。
+4. **可选 AI 补镜**：素材缺关键镜头时，用百炼快乐马 `bl video generate` 生成补镜片段，再作为素材放回 Remotion。
+5. **生成配音**：首选百炼 `bl speech synthesize`，批量模式由 `scripts/gen_tts_bailian.py` 逐句生成 `s1.mp3 / s2.mp3`。
+6. **校准节奏**：用 `scripts/measure_audio.sh` 测真实音频长度，修改 `SCENE_FRAMES`，避免旁白被截断。
+7. **代码化合成**：从 `template/` 建 Remotion 工程，套 `warm / guochao / tech` 风格预设，叠字幕、动效、产品截图和背景音乐。
+8. **渲染自检**：用 `npx remotion render` 输出 MP4，再跑 `scripts/verify.sh` 检查规格、音量和抽帧。
+
+### 用到的百炼 CLI 命令
+
+```bash
+# 分镜/旁白草稿
+bl text chat \
+  --system "Reply in 简体中文. 输出紧凑的产品宣传片分镜表。" \
+  --message "根据这些素材和卖点，写一版60秒产品宣传片分镜：<素材清单+卖点>"
+
+# 单句 TTS；批量生成时由 scripts/gen_tts_bailian.py 调用
+bl speech synthesize \
+  --text "一句产品宣传片旁白" \
+  --voice longanwen_v3 \
+  --language zh \
+  --instruction "商务科技宣传片旁白，语气自信、清晰、温暖，语速适中" \
+  --format mp3 \
+  --out public/audio/s1.mp3
+
+# 可选：快乐马文生视频补镜。这里用 5 秒作为低成本测试示例，生产时可按需求调整。
+bl video generate \
+  --model happyhorse-1.1-t2v \
+  --prompt "明亮现代展厅里，一台智能健康设备在柔和灯光下缓慢旋转，商务科技质感，无文字，无logo" \
+  --ratio 16:9 \
+  --resolution 720P \
+  --duration 5 \
+  --download public/assets/ai_device_5s.mp4
+
+# 可选：快乐马图生视频补镜，本地图片可直接传入。
+bl video generate \
+  --model happyhorse-1.1-i2v \
+  --image public/assets/device.jpg \
+  --prompt "保持产品外观一致，镜头轻微推进，背景干净，柔和反光，无文字" \
+  --ratio 16:9 \
+  --resolution 720P \
+  --duration 5 \
+  --download public/assets/device_i2v_5s.mp4
+```
+
+### 效果展示
+
+建议 Showcase 附一段 `out/final.mp4` 或一张封面帧。当前仓库不内置成片，因为真实效果依赖用户提供的产品素材和品牌信息；生成项目后可用下面命令导出展示图：
+
+```bash
+npx remotion still Promo 90 "out/showcase-cover.png"
+```
+
+可展示的成片特征：
+
+- 片头 3 秒内给出产品名/核心价值，大字卡无声可读。
+- 中段用真实产品图、App 截图、AI 补镜和 React 数据卡片组合呈现卖点。
+- 旁白、字幕、背景音乐同步，结尾可循环回片头，适合展厅屏幕播放。
+
+### 踩坑记录
+
+- **快乐马成本高**：测试阶段建议用 `--duration 5`、`--resolution 720P` 先看方向；生产时不在 skill 中限制长度，按需求、预算和模型支持范围设置。
+- **AI 视频不适合生成文字**：提示词里要求“无文字、无 logo”，字幕和品牌名统一在 Remotion 里叠加。
+- **旁白容易被截断**：不同音色语速不同，TTS 后必须运行 `measure_audio.sh`，再改 `SCENE_FRAMES`。
+- **HEVC 容易黑屏**：用户手机视频先转 H.264，再用 `<OffthreadVideo>`。
+- **Remotion 并发过高不稳**：默认 `--concurrency=2`，渲染后检查 `out/` 里是否真的生成 MP4。
+
+---
+
 ## 快速开始
 
 ### 前置依赖
@@ -58,14 +134,24 @@ python3 ~/.claude/skills/product-promo-video/scripts/gen_tts_volcano.py \
 # 6. 选风格预设（warm / guochao / tech），拷入 src/
 #    见 styles/STYLES.md
 
-# 7. 生成背景音乐（可选）
+# 7. 可选：用快乐马生成补镜。这里用 5 秒作为低成本测试示例，生产时可按需求调整。
+bl video generate \
+  --model happyhorse-1.1-i2v \
+  --image public/assets/device.jpg \
+  --prompt "保持产品外观一致，镜头轻微推进，背景干净，柔和反光，无文字" \
+  --ratio 16:9 \
+  --resolution 720P \
+  --duration 5 \
+  --download public/assets/device_i2v_5s.mp4
+
+# 8. 生成背景音乐（可选）
 python3 ~/.claude/skills/product-promo-video/scripts/gen_bgm.py \
   --duration 60 --out public/audio/bgm.mp3
 
-# 8. 渲染
+# 9. 渲染
 npx remotion render Promo "out/final.mp4" --concurrency=2
 
-# 9. 自检
+# 10. 自检
 ~/.claude/skills/product-promo-video/scripts/verify.sh "out/final.mp4"
 ```
 
